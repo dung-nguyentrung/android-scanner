@@ -25,6 +25,7 @@ import com.harry.uhf_a.adapter.TagAdapter;
 import com.harry.uhf_a.databinding.FragmentInventoryBinding;
 import com.harry.uhf_a.entity.TagInfo;
 import com.harry.uhf_a.utils.LogUtils;
+import com.harry.uhf_a.utils.SettingsStorage;
 import com.realopeniot.readers_framework.core.ApiCallback;
 import com.realopeniot.readers_framework.core.RFIDApiManager;
 import com.realopeniot.readers_framework.core.ResponseMessage;
@@ -40,6 +41,10 @@ import org.json.JSONObject;
 
 import java.io.File;
 import java.io.FileWriter;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -99,8 +104,8 @@ public class InventoryFragment extends Fragment {
         rfParam.setBlockSelect("EPC");
         rfParam.setAntList(generateAntList(maxAntennaNum));
         rfParam.setPowerList(generatePowerList(maxAntennaNum));
-
         isReading = true;
+        binding.btnStart.setText(R.string.stop);
         new TagInventoryThread().start();
         Toast.makeText(getContext(),"Init RFID Reader successfully", Toast.LENGTH_LONG).show();
     }
@@ -126,10 +131,6 @@ public class InventoryFragment extends Fragment {
 
     public void onStartClicked(int type) {
         isReading = (type == START);
-        if (isReading)
-        {
-            new TagInventoryThread().start();
-        }
     }
 
     public void onResetClicked() {
@@ -139,54 +140,91 @@ public class InventoryFragment extends Fragment {
     }
 
     public void onUploadClicked() {
-            try {
-                // Tạo JSON structure
-                JSONObject root = new JSONObject();
-                root.put("timestamp", getCurrentFormattedTime());
-                root.put("method", "device_report_probe_data");
-                root.put("sn", "d56f07f5");
+        try {
+            SettingsStorage storage = new SettingsStorage(requireContext());
+            // Tạo JSON structure
+            JSONObject root = new JSONObject();
+            root.put("timestamp", getCurrentFormattedTime());
+            root.put("method", "device_report_probe_data");
+            root.put("sn", storage.getDeviceSn());
 
-                long currentMillis = System.currentTimeMillis();
-                JSONObject data = new JSONObject();
-                SimpleDateFormat sdf = new SimpleDateFormat("yyyy_MM_dd_HH_mm", Locale.getDefault());
-                sdf.setTimeZone(TimeZone.getTimeZone("Asia/Ho_Chi_Minh"));
-                String fileNameTime =  sdf.format(new Date(System.currentTimeMillis()));
-                data.put("timestamp", String.valueOf(currentMillis));
-                data.put("id", "d56f07f5");
-                data.put("temperature", "0");
+            long currentMillis = System.currentTimeMillis();
+            JSONObject data = new JSONObject();
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy_MM_dd_HH_mm_ss", Locale.getDefault());
+            sdf.setTimeZone(TimeZone.getTimeZone("Asia/Ho_Chi_Minh"));
+            String fileNameTime = sdf.format(new Date(currentMillis));
+            data.put("timestamp", String.valueOf(currentMillis));
+            data.put("id", storage.getDeviceSn());
+            data.put("temperature", "0");
 
-                JSONArray tagArray = new JSONArray();
-                for (TagInfo tag : tagInfoMap.values()) {
-                    JSONObject tagJson = new JSONObject();
-                    tagJson.put("direction", "1");
-                    tagJson.put("firstTime", currentMillis); // dummy firstTime
-                    tagJson.put("lastTime", currentMillis); // dummy lastTime
-                    tagJson.put("firstAnt", tag.getAnt());  // giả định same as ant
-                    tagJson.put("ant", tag.getAnt());
-                    tagJson.put("rssi", "11"); // dummy RSSI
-                    tagJson.put("epc", tag.getEpc());
-                    tagArray.put(tagJson);
-                }
-
-                data.put("tagList", tagArray);
-                root.put("data", data);
-
-                // Ghi vào file
-                String fileName = "hwl_" + fileNameTime + ".json";
-                File dir = new File(requireContext().getExternalFilesDir(null), "logs");
-                if (!dir.exists()) dir.mkdirs();
-                File file = new File(dir, fileName);
-
-                FileWriter writer = new FileWriter(file);
-                writer.write(root.toString(4)); // Pretty print
-                writer.close();
-
-                Toast.makeText(getContext(), "Dữ liệu đã ghi vào file: " + file.getAbsolutePath(), Toast.LENGTH_SHORT).show();
-
-            } catch (Exception e) {
-                Toast.makeText(getContext(), "Lỗi khi ghi file JSON: " + e.getMessage() , Toast.LENGTH_SHORT).show();
+            JSONArray tagArray = new JSONArray();
+            for (TagInfo tag : tagInfoMap.values()) {
+                JSONObject tagJson = new JSONObject();
+                tagJson.put("direction", "1");
+                tagJson.put("firstTime", currentMillis);
+                tagJson.put("lastTime", currentMillis);
+                tagJson.put("firstAnt", tag.getAnt());
+                tagJson.put("ant", tag.getAnt());
+                tagJson.put("rssi", "11");
+                tagJson.put("epc", tag.getEpc());
+                tagArray.put(tagJson);
             }
+
+            data.put("tagList", tagArray);
+            root.put("data", data);
+
+            // Ghi vào file
+            String fileName = "hwl_" + fileNameTime + ".json";
+            File dir = new File(requireContext().getExternalFilesDir(null), "logs");
+            if (!dir.exists()) dir.mkdirs();
+            File file = new File(dir, fileName);
+
+            FileWriter writer = new FileWriter(file);
+            writer.write(root.toString(4));
+            writer.close();
+
+            // Gửi dữ liệu lên API
+            new Thread(() -> {
+                try {
+                    URL url = new URL(storage.getApiAddress());
+                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("POST");
+                    conn.setRequestProperty("Content-Type", "application/json; utf-8");
+                    conn.setRequestProperty("Accept", "application/json");
+                    conn.setDoOutput(true);
+
+                    byte[] input = root.toString().getBytes(StandardCharsets.UTF_8);
+                    conn.setFixedLengthStreamingMode(input.length);
+
+                    try (OutputStream os = conn.getOutputStream()) {
+                        os.write(input, 0, input.length);
+                    }
+
+                    int responseCode = conn.getResponseCode();
+
+                    requireActivity().runOnUiThread(() -> {
+                        if (responseCode == HttpURLConnection.HTTP_OK || responseCode == HttpURLConnection.HTTP_CREATED) {
+                            Toast.makeText(getContext(), "Upload thành công !", Toast.LENGTH_SHORT).show();
+                        } else {
+                            Toast.makeText(getContext(), "Upload thất bại !" , Toast.LENGTH_SHORT).show();
+                        }
+                    });
+
+                    conn.disconnect();
+                } catch (Exception ex) {
+                    Log.e("Upload", "Lỗi khi gửi dữ liệu: " + ex.getMessage(), ex);
+                    requireActivity().runOnUiThread(() -> {
+                        Toast.makeText(getContext(), "Lỗi khi gửi dữ liệu: " + ex.getMessage(), Toast.LENGTH_SHORT).show();
+                    });
+                }
+            }).start();
+
+
+        } catch (Exception e) {
+            Toast.makeText(getContext(), "Lỗi khi ghi file JSON: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
     }
+
 
 
     @Override
@@ -246,7 +284,7 @@ public class InventoryFragment extends Fragment {
                         LogUtils.logout("RFID", "GetTagDataList success: " + tagDataArrayList.size());
                         for (TagData tag : tagDataArrayList) {
                             final String epc = tag.getEpc();
-                            if (epc == null || epc.isEmpty()) continue;
+                            if (epc == null || epc.isEmpty() || !epc.contains("E28")) continue;
 
                             TagInfo tagInfo = tagInfoMap.get(epc);
 
@@ -270,6 +308,7 @@ public class InventoryFragment extends Fragment {
                         LogUtils.logout("DEBUG-RFID", "asyncGetTagDataList error: " + msg);
                     }
                 }, Schedulers.immediate());
+
 
             }
         }

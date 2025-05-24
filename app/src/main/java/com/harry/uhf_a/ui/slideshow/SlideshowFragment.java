@@ -20,16 +20,21 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.harry.uhf_a.R;
 import com.harry.uhf_a.adapter.LogFileAdapter;
 import com.harry.uhf_a.databinding.FragmentSlideshowBinding;
+import com.harry.uhf_a.utils.SettingsStorage;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
@@ -50,8 +55,8 @@ public class SlideshowFragment extends Fragment {
         recyclerView = root.findViewById(R.id.recyclerViewLogs);
         recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
 
-        loadTodayLogFiles();
-
+//        loadTodayLogFiles();
+        loadRecentLogFiles();
         adapter = new LogFileAdapter(todayFiles, new LogFileAdapter.OnLogFileActionListener() {
             @Override
             public void onView(File file) {
@@ -83,30 +88,90 @@ public class SlideshowFragment extends Fragment {
     }
 
     private void shareFile(File file) {
-        Uri fileUri = FileProvider.getUriForFile(
-                requireContext(),
-                requireContext().getPackageName() + ".provider",
-                file
-        );
+        new Thread(() -> {
+            try {
+                byte[] input;
+                try (FileInputStream fis = new FileInputStream(file)) {
+                    ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                    byte[] buffer = new byte[1024];
+                    int read;
+                    while ((read = fis.read(buffer)) != -1) {
+                        bos.write(buffer, 0, read);
+                    }
+                    input = bos.toByteArray();
+                }
+                SettingsStorage storage = new SettingsStorage(requireContext());
+                URL url = new URL(storage.getApiAddress());
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setRequestProperty("Content-Type", "application/json; utf-8");
+                conn.setRequestProperty("Accept", "application/json");
+                conn.setDoOutput(true);
+                conn.setFixedLengthStreamingMode(input.length);
 
-        Intent intent = new Intent(Intent.ACTION_SEND);
-        intent.setType("application/json");
-        intent.putExtra(Intent.EXTRA_STREAM, fileUri);
-        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                try (OutputStream os = conn.getOutputStream()) {
+                    os.write(input, 0, input.length);
+                }
 
-        startActivity(Intent.createChooser(intent, "Chia sẻ file JSON qua..."));
+                int responseCode = conn.getResponseCode();
+
+                requireActivity().runOnUiThread(() -> {
+                    if (responseCode == HttpURLConnection.HTTP_OK || responseCode == HttpURLConnection.HTTP_CREATED) {
+                        Toast.makeText(getContext(), "Upload thành công!", Toast.LENGTH_SHORT).show();
+                    } else {
+                        Toast.makeText(getContext(), "Upload thất bại!", Toast.LENGTH_SHORT).show();
+                    }
+                });
+
+                conn.disconnect();
+            } catch (Exception ex) {
+                requireActivity().runOnUiThread(() -> {
+                    Toast.makeText(getContext(), "Lỗi khi gửi dữ liệu: " + ex.getMessage(), Toast.LENGTH_SHORT).show();
+                });
+            }
+        }).start();
+
+
     }
 
 
-    private void loadTodayLogFiles() {
+//    private void  loadTodayLogFiles() {
+//        File logDir = new File(requireContext().getExternalFilesDir(null), "logs");
+//        if (!logDir.exists()) return;
+//
+//        String todayPrefix = new SimpleDateFormat("yyyy_MM_dd", Locale.getDefault())
+//                .format(new Date());
+//
+//        File[] files = logDir.listFiles((dir, name) ->
+//                name.endsWith(".json") && name.startsWith("hwl_" + todayPrefix));
+//
+//        if (files != null) {
+//            todayFiles.clear();
+//            todayFiles.addAll(Arrays.asList(files));
+//            Collections.sort(todayFiles, Comparator.comparing(File::getName).reversed());
+//        }
+//    }
+
+    private void loadRecentLogFiles() {
         File logDir = new File(requireContext().getExternalFilesDir(null), "logs");
         if (!logDir.exists()) return;
 
-        String todayPrefix = new SimpleDateFormat("yyyy_MM_dd", Locale.getDefault())
-                .format(new Date());
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy_MM_dd", Locale.getDefault());
+
+        // Hôm nay
+        Calendar calendar = Calendar.getInstance();
+        String todayPrefix = dateFormat.format(calendar.getTime());
+
+        // Hôm qua
+        calendar.add(Calendar.DATE, -1);
+        String yesterdayPrefix = dateFormat.format(calendar.getTime());
 
         File[] files = logDir.listFiles((dir, name) ->
-                name.endsWith(".json") && name.startsWith("hwl_" + todayPrefix));
+                name.endsWith(".json") && (
+                        name.startsWith("hwl_" + todayPrefix) ||
+                                name.startsWith("hwl_" + yesterdayPrefix)
+                )
+        );
 
         if (files != null) {
             todayFiles.clear();
@@ -114,6 +179,7 @@ public class SlideshowFragment extends Fragment {
             Collections.sort(todayFiles, Comparator.comparing(File::getName).reversed());
         }
     }
+
 
     private void showFileContentDialog(File file) {
         try {
