@@ -1,25 +1,22 @@
 package com.harry.uhf_a.ui.slideshow;
 
 import android.app.AlertDialog;
-import android.content.Intent;
-import android.net.Uri;
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.TextView;
+import android.widget.EditText;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
-import androidx.core.content.FileProvider;
 import androidx.fragment.app.Fragment;
-import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.harry.uhf_a.R;
 import com.harry.uhf_a.adapter.LogFileAdapter;
-import com.harry.uhf_a.databinding.FragmentSlideshowBinding;
 import com.harry.uhf_a.utils.SettingsStorage;
 
 import java.io.ByteArrayOutputStream;
@@ -29,15 +26,12 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
@@ -46,17 +40,22 @@ public class SlideshowFragment extends Fragment {
     private RecyclerView recyclerView;
     private LogFileAdapter adapter;
     private List<File> todayFiles = new ArrayList<>();
+    private List<File> originalFileList = new ArrayList<>();
+    private EditText editTextFilter;
 
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater,
                              ViewGroup container, Bundle savedInstanceState) {
 
-        View root = inflater.inflate(com.harry.uhf_a.R.layout.fragment_slideshow, container, false);
+        View root = inflater.inflate(R.layout.fragment_slideshow, container, false);
+
         recyclerView = root.findViewById(R.id.recyclerViewLogs);
+        editTextFilter = root.findViewById(R.id.editTextFilter);
+
         recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
 
-//        loadTodayLogFiles();
         loadRecentLogFiles();
+
         adapter = new LogFileAdapter(todayFiles, new LogFileAdapter.OnLogFileActionListener() {
             @Override
             public void onView(File file) {
@@ -68,6 +67,7 @@ public class SlideshowFragment extends Fragment {
                 boolean deleted = file.delete();
                 if (deleted) {
                     todayFiles.remove(file);
+                    originalFileList.remove(file);
                     adapter.notifyDataSetChanged();
                     Toast.makeText(getContext(), "Đã xóa " + file.getName(), Toast.LENGTH_SHORT).show();
                 } else {
@@ -81,18 +81,45 @@ public class SlideshowFragment extends Fragment {
             }
         });
 
-
         recyclerView.setAdapter(adapter);
 
+        // 👇 Filter input handler
+        editTextFilter.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                filterLogs(s.toString());
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) { }
+        });
+
         return root;
+    }
+
+    private void filterLogs(String query) {
+        todayFiles.clear();
+        if (query.isEmpty()) {
+            todayFiles.addAll(originalFileList);
+        } else {
+            for (File file : originalFileList) {
+                if (file.getName().toLowerCase().contains(query.toLowerCase())) {
+                    todayFiles.add(file);
+                }
+            }
+        }
+        adapter.notifyDataSetChanged();
     }
 
     private void shareFile(File file) {
         new Thread(() -> {
             try {
                 byte[] input;
-                try (FileInputStream fis = new FileInputStream(file)) {
-                    ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                try (FileInputStream fis = new FileInputStream(file);
+                     ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
                     byte[] buffer = new byte[1024];
                     int read;
                     while ((read = fis.read(buffer)) != -1) {
@@ -100,6 +127,7 @@ public class SlideshowFragment extends Fragment {
                     }
                     input = bos.toByteArray();
                 }
+
                 SettingsStorage storage = new SettingsStorage(requireContext());
                 URL url = new URL(storage.getApiAddress());
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -114,7 +142,6 @@ public class SlideshowFragment extends Fragment {
                 }
 
                 int responseCode = conn.getResponseCode();
-
                 requireActivity().runOnUiThread(() -> {
                     if (responseCode == HttpURLConnection.HTTP_OK || responseCode == HttpURLConnection.HTTP_CREATED) {
                         Toast.makeText(getContext(), "Upload thành công!", Toast.LENGTH_SHORT).show();
@@ -125,32 +152,12 @@ public class SlideshowFragment extends Fragment {
 
                 conn.disconnect();
             } catch (Exception ex) {
-                requireActivity().runOnUiThread(() -> {
-                    Toast.makeText(getContext(), "Lỗi khi gửi dữ liệu: " + ex.getMessage(), Toast.LENGTH_SHORT).show();
-                });
+                requireActivity().runOnUiThread(() ->
+                        Toast.makeText(getContext(), "Lỗi khi gửi dữ liệu: " + ex.getMessage(), Toast.LENGTH_SHORT).show()
+                );
             }
         }).start();
-
-
     }
-
-
-//    private void  loadTodayLogFiles() {
-//        File logDir = new File(requireContext().getExternalFilesDir(null), "logs");
-//        if (!logDir.exists()) return;
-//
-//        String todayPrefix = new SimpleDateFormat("yyyy_MM_dd", Locale.getDefault())
-//                .format(new Date());
-//
-//        File[] files = logDir.listFiles((dir, name) ->
-//                name.endsWith(".json") && name.startsWith("hwl_" + todayPrefix));
-//
-//        if (files != null) {
-//            todayFiles.clear();
-//            todayFiles.addAll(Arrays.asList(files));
-//            Collections.sort(todayFiles, Comparator.comparing(File::getName).reversed());
-//        }
-//    }
 
     private void loadRecentLogFiles() {
         File logDir = new File(requireContext().getExternalFilesDir(null), "logs");
@@ -158,11 +165,9 @@ public class SlideshowFragment extends Fragment {
 
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy_MM_dd", Locale.getDefault());
 
-        // Hôm nay
         Calendar calendar = Calendar.getInstance();
         String todayPrefix = dateFormat.format(calendar.getTime());
 
-        // Hôm qua
         calendar.add(Calendar.DATE, -1);
         String yesterdayPrefix = dateFormat.format(calendar.getTime());
 
@@ -177,9 +182,10 @@ public class SlideshowFragment extends Fragment {
             todayFiles.clear();
             todayFiles.addAll(Arrays.asList(files));
             Collections.sort(todayFiles, Comparator.comparing(File::getName).reversed());
+            originalFileList.clear();
+            originalFileList.addAll(todayFiles);
         }
     }
-
 
     private void showFileContentDialog(File file) {
         try {
@@ -195,17 +201,14 @@ public class SlideshowFragment extends Fragment {
     }
 
     private String readFileContent(File file) throws IOException {
-        FileInputStream fis = new FileInputStream(file);
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-
-        byte[] buffer = new byte[1024];
-        int len;
-        while ((len = fis.read(buffer)) != -1) {
-            baos.write(buffer, 0, len);
+        try (FileInputStream fis = new FileInputStream(file);
+             ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[1024];
+            int len;
+            while ((len = fis.read(buffer)) != -1) {
+                baos.write(buffer, 0, len);
+            }
+            return baos.toString("UTF-8");
         }
-
-        fis.close();
-        return baos.toString("UTF-8");
     }
-
 }

@@ -120,12 +120,17 @@ public class InventoryFragment extends Fragment {
 
     private List<Power> generatePowerList(int count) {
         List<Power> list = new ArrayList<>();
-        for (int i = 0; i < count; i++) {
-            Power power = new Power();
-            power.setAntNumber(i + 1);
-            power.setPower(30);
-            list.add(power);
+        SettingsStorage storage = new SettingsStorage(requireContext());
+
+        for (int i = 1; i <= count; i++) {
+            if (storage.isAntennaEnabled(i)) {
+                Power power = new Power();
+                power.setAntNumber(i);
+                power.setPower(storage.getAntennaPower(i));
+                list.add(power);
+            }
         }
+
         return list;
     }
 
