@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="horizontal"
+    android:background="@color/colorBackground"
+    tools:context=".MainActivity">
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:background="@color/black"
+        android:padding="@dimen/padding_medium">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/total"
+            android:textSize="@dimen/text_size_large"
+            android:textColor="@color/textColorPrimary"
+            android:gravity="center"
+            android:paddingBottom="@dimen/padding_small"
+            android:layout_marginBottom="@dimen/margin_large" />
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardBackgroundColor="@color/colorAccent"
+            app:cardCornerRadius="@dimen/card_corner_radius"
+            app:cardElevation="@dimen/card_elevation"
+            android:layout_marginBottom="@dimen/margin_medium">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="@dimen/padding_medium">
+                <TextView
+                    android:id="@+id/tv_identified_count"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="0"
+                    android:textSize="@dimen/text_size_extra_large"
+                    android:textColor="@color/textColorPrimary"
+                    android:textStyle="bold"
+                    android:layout_gravity="center_horizontal"
+                    android:paddingTop="@dimen/padding_small" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_inventory"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/start"
+            app:backgroundTint="@color/buttonPrimary"
+            android:textColor="@color/textColorPrimary"
+            android:layout_marginTop="@dimen/margin_large"
+            android:paddingVertical="15sp" android:letterSpacing="0.05"
+            style="@style/Widget.MaterialComponents.Button" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_clear_data"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/reset"
+            app:backgroundTint="@color/buttonReset"
+            android:textColor="@color/textColorPrimary"
+            android:layout_marginTop="@dimen/margin_small"
+            android:paddingVertical="15sp" android:letterSpacing="0.05"
+            style="@style/Widget.MaterialComponents.Button" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_upload"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/upload"
+            app:backgroundTint="@color/buttonPrimary"
+            android:textColor="@color/textColorPrimary"
+            android:layout_marginTop="@dimen/margin_small"
+            android:paddingVertical="15sp" android:letterSpacing="0.05"
+            style="@style/Widget.MaterialComponents.Button" />
+
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="4"
+        android:orientation="vertical"
+        android:background="@color/colorBackground"
+        android:padding="@dimen/padding_large">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:background="@color/colorPrimaryDark"
+            android:padding="@dimen/padding_small">
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="0.5"
+                android:text="#"
+                android:textStyle="bold"
+                android:textColor="@color/textColorPrimary"
+                android:gravity="center" />
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="2"
+                android:text="EPC"
+                android:textStyle="bold"
+                android:textColor="@color/textColorPrimary"
+                android:gravity="center" />
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="0.7"
+                android:text="ANT"
+                android:textStyle="bold"
+                android:textColor="@color/textColorPrimary"
+                android:gravity="center" />
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="READ TIME"
+                android:textStyle="bold"
+                android:textColor="@color/textColorPrimary"
+                android:gravity="center" />
+        </LinearLayout>
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rv_tag_data"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:scrollbars="vertical"
+            android:background="@color/colorListBackground"
+            android:paddingTop="@dimen/padding_small"
+            android:paddingBottom="@dimen/padding_small" />
+
+        <TextView
+            android:id="@+id/tv_rf_status_message"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Connecting..."
+            android:textSize="@dimen/text_size_xsmall"
+            android:textColor="@color/textColorSecondary"
+            android:layout_marginTop="@dimen/margin_medium" />
+        <TextView
+            android:id="@+id/tv_ip"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Loading"
+            android:textStyle="bold"
+            android:textSize="@dimen/text_size_xsmall"
+            android:textColor="@color/colorPrimary" />
+
+    </LinearLayout>
+</LinearLayout>

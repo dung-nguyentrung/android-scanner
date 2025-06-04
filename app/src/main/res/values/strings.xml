@@ -1,0 +1,18 @@
+<resources>
+    <string name="app_name">uhf_c</string>
+    <string name="navigation_drawer_open">Open navigation drawer</string>
+    <string name="navigation_drawer_close">Close navigation drawer</string>
+    <string name="nav_header_title">RFID Scanner</string>
+    <string name="nav_header_subtitle">Made by Harry</string>
+    <string name="nav_header_desc">Navigation header</string>
+    <string name="action_settings">Settings</string>
+
+    <string name="menu_home">Đọc tem</string>
+    <string name="menu_gallery">Log </string>
+    <string name="menu_slideshow">Cài đặt</string>
+    <string name="start">Đọc</string>
+    <string name="stop">Tạm dừng</string>
+    <string name="reset">Đặt lại</string>
+    <string name="upload">Upload dữ liệu</string>
+    <string name="total">Tem đã quét</string>
+</resources>
